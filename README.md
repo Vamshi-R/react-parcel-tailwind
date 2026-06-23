@@ -602,6 +602,96 @@ plus Vite-specific hooks. Common ones:
 - Config reference: https://vitejs.dev/config/
 - Plugins: https://vitejs.dev/plugins/
 
+## HMR (Hot Module Replacement) — Study Notes
+
+> A development feature that updates code **in the browser while the app keeps
+> running** — no full reload, and the app's current state is preserved.
+
+### 1. What is HMR?
+
+HMR swaps the **changed module** into a **running** application without refreshing
+the whole page. Your component tree, route, scroll position, and local state stay
+exactly as they were — only the edited code is replaced.
+
+### 2. The Problem It Solves
+
+Imagine working on a form deep in the app:
+
+1. You navigate to the page, open a modal, fill in 10 fields.
+2. You tweak some CSS or fix a typo in a component.
+
+- **Without HMR** → the browser does a full reload: the modal closes, all 10
+  fields are wiped, and you redo every step just to see the change.
+- **With HMR** → only the changed module is swapped in. The modal stays open, the
+  fields keep their values, and your edit appears instantly.
+
+### 3. How It Works (the flow)
+
+```
+You save a file
+   │
+   ▼
+Dev server detects the change (file watcher)
+   │
+   ▼
+Only the CHANGED module is recompiled
+   │
+   ▼
+Server pushes the update to the browser  (via a WebSocket connection)
+   │
+   ▼
+HMR runtime in the browser swaps the old module for the new one
+   │
+   ▼
+UI updates in place — state preserved, no full reload
+```
+
+The key piece is the **WebSocket** the dev server keeps open to the browser. When
+a module changes, the server sends just that patch, and a small **HMR runtime**
+(injected during development) replaces the old module's code with the new version.
+
+### 4. HMR vs Live Reload
+
+| Aspect                       | Live Reload                | HMR                          |
+| ---------------------------- | -------------------------- | ---------------------------- |
+| What it does                 | Refreshes the **whole page** | Swaps only the **changed module** |
+| App state                    | ❌ Lost (full reload)      | ✅ Preserved                 |
+| Speed                        | Slower (re-runs everything)| Near-instant (targeted)      |
+| Scroll position / form data  | Reset                      | Kept                         |
+
+Live reload is the older, blunter approach — "something changed, reload
+everything." HMR is surgical.
+
+### 5. State Preservation — the Headline Feature
+
+This is what makes HMR feel magical, especially with React:
+
+- **CSS changes** apply instantly with zero flicker — styles are just re-injected.
+- **Component changes** (with **React Fast Refresh**, built on HMR) update the
+  component while keeping its `useState`/`useReducer` values intact.
+
+Example: editing the `Counter` component's button styling while the count is at
+`42` updates the look and the count **stays at 42** instead of resetting to `0`.
+
+### 6. HMR Across the Bundlers
+
+- **Parcel** – on by default with `npm start` (zero config).
+- **Vite** – famously fast: it serves native ESM, so only the one changed module
+  is invalidated (no re-bundling). `@vitejs/plugin-react` wires up Fast Refresh.
+- **Webpack** – via `webpack-dev-server` with `hot: true` in the config.
+
+### 7. Important Caveat
+
+HMR is a **development-only** tool. The WebSocket, file watcher, and HMR runtime
+never ship to production — they exist purely to speed up the local feedback loop.
+In production, users get the final static bundle with none of this machinery.
+
+### 8. Further Reading
+
+- Vite HMR API: https://vitejs.dev/guide/api-hmr.html
+- Webpack HMR concepts: https://webpack.js.org/concepts/hot-module-replacement/
+- React Fast Refresh: https://reactnative.dev/docs/fast-refresh
+
 ## Classic Scripts — Study Notes
 
 > The original way browsers load JavaScript — everything that is **not**
